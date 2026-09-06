@@ -8,7 +8,7 @@ from fpl_advisor import (
     available_chips, get_fixture_counts_per_team, recommend_chips,
     estimate_autosub_probability, format_email,
     hours_until, should_send_now, read_last_notified_event, write_last_notified_event,
-    compute_free_transfers,
+    compute_free_transfers, env_or_default,
 )
 from datetime import datetime, timezone, timedelta
 import os
@@ -376,5 +376,18 @@ print("compute_free_transfers (wildcard preserves bank, unaffected by transfer c
 h6 = {"current": [{"event": i, "event_transfers": 0} for i in range(1, 8)], "chips": []}
 assert compute_free_transfers(h6, 8) == 5
 print("compute_free_transfers (caps at 5, never exceeds): OK")
+
+# ---- env_or_default: the exact bug reported — a GitHub Actions secret
+# that's unset comes through as an empty string, not a missing key, which
+# broke os.environ.get(key, default)'s normal fallback ----
+import os as _os
+assert env_or_default("FPL_TEST_UNSET_VAR_XYZ", "fallback") == "fallback", "truly missing key should use default"
+_os.environ["FPL_TEST_EMPTY_VAR_XYZ"] = ""
+assert env_or_default("FPL_TEST_EMPTY_VAR_XYZ", "fallback") == "fallback", "empty-string env var must ALSO fall back to default (this was the bug)"
+_os.environ["FPL_TEST_REAL_VAR_XYZ"] = "actual_value"
+assert env_or_default("FPL_TEST_REAL_VAR_XYZ", "fallback") == "actual_value", "a real value must still override the default"
+del _os.environ["FPL_TEST_EMPTY_VAR_XYZ"]
+del _os.environ["FPL_TEST_REAL_VAR_XYZ"]
+print("env_or_default (empty-string secrets fall back correctly, real values still override): OK")
 
 print("\nALL TESTS PASSED")

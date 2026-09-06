@@ -20,18 +20,28 @@ import requests
 BASE = "https://fantasy.premierleague.com/api"
 
 # ---- Config (env vars override these defaults) ----
-TEAM_ID = int(os.environ.get("FPL_TEAM_ID", "8007579"))
+def env_or_default(key, default):
+    """os.environ.get(key, default) only falls back when the key is
+    ABSENT — but a GitHub Actions secret that's unset or empty still gets
+    passed through as an empty string, not omitted, which breaks that
+    fallback silently (this is exactly what caused TEAM_ID = int('') to
+    crash). This treats an empty string the same as truly unset."""
+    val = os.environ.get(key)
+    return val if val not in (None, "") else default
+
+
+TEAM_ID = int(env_or_default("FPL_TEAM_ID", "8007579"))
 FREE_TRANSFERS_OVERRIDE = os.environ.get("FPL_FREE_TRANSFERS")  # optional manual override; unset -> auto-computed each run from your real transfer history
-FIXTURE_HORIZON = int(os.environ.get("FPL_FIXTURE_HORIZON", "3"))  # gameweeks ahead to average FDR over for transfer targets
+FIXTURE_HORIZON = int(env_or_default("FPL_FIXTURE_HORIZON", "3"))  # gameweeks ahead to average FDR over for transfer targets
 EMAIL_FROM = os.environ.get("EMAIL_FROM", "")
 EMAIL_TO = os.environ.get("EMAIL_TO", "")
 EMAIL_APP_PASSWORD = os.environ.get("EMAIL_APP_PASSWORD", "")
-SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.gmail.com")
-SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
-HOURS_BEFORE_DEADLINE = float(os.environ.get("FPL_HOURS_BEFORE_DEADLINE", "24"))
-SEND_WINDOW_TOLERANCE_HOURS = float(os.environ.get("FPL_SEND_WINDOW_TOLERANCE_HOURS", "3"))
+SMTP_HOST = env_or_default("SMTP_HOST", "smtp.gmail.com")
+SMTP_PORT = int(env_or_default("SMTP_PORT", "587"))
+HOURS_BEFORE_DEADLINE = float(env_or_default("FPL_HOURS_BEFORE_DEADLINE", "24"))
+SEND_WINDOW_TOLERANCE_HOURS = float(env_or_default("FPL_SEND_WINDOW_TOLERANCE_HOURS", "3"))
 FORCE_SEND = os.environ.get("FPL_FORCE_SEND", "").lower() in ("1", "true", "yes")
-STATE_PATH = os.environ.get("FPL_STATE_PATH", "state/last_notified.json")
+STATE_PATH = env_or_default("FPL_STATE_PATH", "state/last_notified.json")
 
 POSITION_NAMES = {1: "GKP", 2: "DEF", 3: "MID", 4: "FWD"}
 
