@@ -1,0 +1,48 @@
+name: FPL Advisor
+
+on:
+  schedule:
+    # Runs every 3 hours. The script itself decides whether it's actually
+    # within the configured window before the real deadline (from FPL's own
+    # API) — this frequent cron just gives it enough chances to catch that
+    # window regardless of which day/time a given gameweek's deadline falls on.
+    - cron: "0 */3 * * *"
+  workflow_dispatch:
+    inputs:
+      force_send:
+        description: "Send immediately regardless of timing window (for testing)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write  # needed to commit the "last notified gameweek" state file back
+
+jobs:
+  run-advisor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - run: python fpl_advisor.py
+        env:
+          FPL_TEAM_ID: ${{ secrets.FPL_TEAM_ID }}
+          FPL_FREE_TRANSFERS: ${{ secrets.FPL_FREE_TRANSFERS }}  # optional override — leave unset to auto-compute from your transfer history
+          FPL_HOURS_BEFORE_DEADLINE: ${{ secrets.FPL_HOURS_BEFORE_DEADLINE }}  # optional, defaults to 24
+          FPL_FORCE_SEND: ${{ inputs.force_send }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
+      - name: Commit updated notification state, if changed
+        run: |
+          git config user.name "fpl-advisor-bot"
+          git config user.email "actions@users.noreply.github.com"
+          if [ -f state/last_notified.json ]; then
+            git add state/last_notified.json
+            git diff --staged --quiet || git commit -m "Update last-notified gameweek"
+            git push
+          else
+            echo "No state file yet (nothing sent this run) — nothing to commit."
+          fi
